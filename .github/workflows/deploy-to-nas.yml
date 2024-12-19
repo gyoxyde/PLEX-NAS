@@ -43,7 +43,16 @@ jobs:
           echo "TELEGRAM_TOKEN=$TELEGRAM_TOKEN" >> .env
           echo "TELEGRAM_USER_ID=$TELEGRAM_USER_ID" >> .env
 
-      # Étape 5 : Transférer le binaire et le fichier .env vers le NAS
+        # Étape 5 : Ajouter le NAS aux known_hosts
+      - name: Add NAS to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "[zarconecesar.synology.me]:5022 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDepos47nnweumbFu/+gNOXQdwpF5uLzvSAa3X4susPvo7jR9hBxSz0Psjs3oeg9cK1b07ETXzyn2C681zgniIkm/zaMnffw53FnKfVIHlFRD8XWqijLo4Kjuml02Uc4Zlz3BJP76jqp2v3H8Y7dMzL3z0rtTpIJ62DQe3Vxclo8ibMXqIGkMVkyoQZcdjmOKzMONminiDiktcdox8dycx2OP+tWzehG7PSoOjYDWJer9J/iwbZRyBLfv+lXG9LNoxiXRf8f6QrOki78835jwFbNrQMyiixaY36J0kfoCs6+xXg20eeRKHq/mC5BC18OJBeyUJQZWwt2NUEpzyK6bkr5hIiYIQiGp1gL0afIbje7sbsXTE7LOYmi3P2Px0eu3wMEHpd9ol5dSNSlnxbGeOkiM7D1O9EBD4WsMCW5VgNQgbgWYtWknTLOO1ehNHek5k2qPuDyBeCMEv6XfYsihuRuzaNFQ92RPeMOgBIXR8lS51WN8WGVMLhsC+NyFExlcs=" >> ~/.ssh/known_hosts
+          echo "[zarconecesar.synology.me]:5022 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeMhPjNrx5UjyqCs8KKpISE2gYJ9HLc67jmrB1xBBEc" >> ~/.ssh/known_hosts
+          echo "[zarconecesar.synology.me]:5022 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNkh2OgzeUqSSyinwoef0wIonL+OwWnw0whtGO7EHviVHd7vllP/1v1igVgTCHNoVGbHJrHDKlcY5YavPGYNkzI=" >> ~/.ssh/known_hosts
+
+
+      # Étape 6 : Upload des fichiers sur le NAS
       - name: Upload files to Synology NAS
         env:
           NAS_PUBLIC_IP: ${{ secrets.NAS_PUBLIC_IP }}
