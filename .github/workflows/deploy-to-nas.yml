@@ -1,0 +1,44 @@
+name: Deploy to Synology NAS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1 : Récupérer le code source
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Étape 2 : Installer Go
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Étape 3 : Compiler le script
+      - name: Build binary
+        run: |
+          mkdir -p build
+          GOOS=linux GOARCH=amd64 go build -o build/botTelegram main.go
+
+      # Étape 4 : Ajouter les variables d'environnement
+      - name: Export environment variables
+        run: |
+          echo "NAS_IP=${{ secrets.NAS_IP }}" >> $GITHUB_ENV
+          echo "NAS_PORT=${{ secrets.NAS_PORT }}" >> $GITHUB_ENV
+          echo "NAS_USER=${{ secrets.NAS_USER }}" >> $GITHUB_ENV
+          echo "NAS_PASSWORD=${{ secrets.NAS_PASSWORD }}" >> $GITHUB_ENV
+          echo "TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}" >> $GITHUB_ENV
+          echo "TELEGRAM_USER_ID=${{ secrets.TELEGRAM_USER_ID }}" >> $GITHUB_ENV
+
+      # Étape 5 : Transférer le binaire sur le NAS
+      - name: Upload binary to Synology NAS
+        env:
+          NAS_PASSWORD: ${{ secrets.NAS_PASSWORD }}
+        run: |
+          sshpass -p "$NAS_PASSWORD" scp -P $NAS_PORT build/botTelegram $NAS_USER@$NAS_IP:/volume1/homes/$NAS_USER/
