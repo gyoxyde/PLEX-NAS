@@ -55,8 +55,8 @@ func authenticate() string {
 }
 
 func addDownload(sid, link string) {
-	nasIP := os.Getenv("NAS_IP")
-	nasPort := os.Getenv("NAS_PORT")
+	nasIP := os.Getenv("NAS_LOCAL_IP")
+	nasPort := os.Getenv("NAS_LOCAL_PORT")
 
 	taskURL := fmt.Sprintf("https://%s:%s/webapi/DownloadStation/task.cgi", nasIP, nasPort)
 	params := url.Values{
