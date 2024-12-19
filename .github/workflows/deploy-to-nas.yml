@@ -3,7 +3,7 @@ name: Deploy to Synology NAS
 on:
   push:
     branches:
-      - main
+      - main  # Déclenche l'action lors d'un push sur la branche principale
 
 jobs:
   build-and-deploy:
@@ -20,17 +20,17 @@ jobs:
         with:
           go-version: '1.21'
 
-      # Étape 3 : Compiler le script
+      # Étape 3 : Compiler le binaire
       - name: Build binary
         run: |
           mkdir -p build
           GOOS=linux GOARCH=amd64 go build -o build/botTelegram main.go
 
-      # Étape 4 : Créer un fichier `.env` avec les variables
+      # Étape 4 : Créer un fichier .env avec les variables nécessaires
       - name: Create .env file
         env:
-          NAS_LOCAL_IP: ${{ secrets.NAS_LOCAL_IP }}
-          NAS_LOCAL_PORT: ${{ secrets.NAS_LOCAL_PORT }}
+          NAS_LOCAL_IP: 192.168.1.15
+          NAS_LOCAL_PORT: 5001
           NAS_USER: ${{ secrets.NAS_USER }}
           NAS_PASSWORD: ${{ secrets.NAS_PASSWORD }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -43,7 +43,7 @@ jobs:
           echo "TELEGRAM_TOKEN=$TELEGRAM_TOKEN" >> .env
           echo "TELEGRAM_USER_ID=$TELEGRAM_USER_ID" >> .env
 
-      # Étape 5 : Transférer le binaire et le fichier `.env` sur le NAS
+      # Étape 5 : Transférer le binaire et le fichier .env vers le NAS
       - name: Upload files to Synology NAS
         env:
           NAS_PUBLIC_IP: ${{ secrets.NAS_PUBLIC_IP }}
@@ -53,13 +53,3 @@ jobs:
         run: |
           sshpass -p "$NAS_PASSWORD" scp -P $NAS_PUBLIC_PORT build/botTelegram $NAS_USER@$NAS_PUBLIC_IP:/volume1/homes/$NAS_USER/
           sshpass -p "$NAS_PASSWORD" scp -P $NAS_PUBLIC_PORT .env $NAS_USER@$NAS_PUBLIC_IP:/volume1/homes/$NAS_USER/
-
-      # Étape 6 : Redémarrer le service ou exécuter le binaire sur le NAS (optionnel)
-      - name: Restart or execute script
-        env:
-          NAS_PUBLIC_IP: ${{ secrets.NAS_PUBLIC_IP }}
-          NAS_PUBLIC_PORT: ${{ secrets.NAS_PUBLIC_PORT }}
-          NAS_USER: ${{ secrets.NAS_USER }}
-          NAS_PASSWORD: ${{ secrets.NAS_PASSWORD }}
-        run: |
-          sshpass -p "$NAS_PASSWORD" ssh -p $NAS_PUBLIC_PORT $NAS_USER@$NAS_PUBLIC_IP "cd /volume1/homes/$NAS_USER && ./botTelegram"
