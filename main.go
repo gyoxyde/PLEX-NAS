@@ -83,7 +83,7 @@ func main() {
 	loadEnv()
 
 	// Authentification et récupération du SID
-	sid := authenticate()
+	// sid := authenticate()
 
 	// Création du bot Telegram
 	botToken := os.Getenv("TELEGRAM_TOKEN")
@@ -110,26 +110,29 @@ func main() {
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Vous n'êtes pas autorisé à utiliser ce bot.")
 			bot.Send(msg)
 			continue
+		} else {
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Bienvenue !")
+			bot.Send(msg)
 		}
 
-		// Gérer les commandes autorisées
-		switch update.Message.Command() {
-		case "download":
-			link := update.Message.CommandArguments()
-			if link == "" {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Envoie un lien valide.")
-				bot.Send(msg)
-				continue
-			}
-			addDownload(sid, link)
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Téléchargement ajouté pour : "+link)
-			bot.Send(msg)
-		case "status":
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Statut des téléchargements : Fonctionnalité à venir.")
-			bot.Send(msg)
-		default:
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Commande inconnue.")
-			bot.Send(msg)
-		}
+		// // Gérer les commandes autorisées
+		// switch update.Message.Command() {
+		// case "download":
+		// 	link := update.Message.CommandArguments()
+		// 	if link == "" {
+		// 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Envoie un lien valide.")
+		// 		bot.Send(msg)
+		// 		continue
+		// 	}
+		// 	addDownload(sid, link)
+		// 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Téléchargement ajouté pour : "+link)
+		// 	bot.Send(msg)
+		// case "status":
+		// 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Statut des téléchargements : Fonctionnalité à venir.")
+		// 	bot.Send(msg)
+		// default:
+		// 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Commande inconnue.")
+		// 	bot.Send(msg)
+		// }
 	}
 }
