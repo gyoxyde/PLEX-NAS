@@ -42,6 +42,8 @@ func AddDownload(sid, link string) {
 	}
 	defer resp.Body.Close()
 
+	print(resp.Body)
+
 	// Lire et analyser la réponse
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
