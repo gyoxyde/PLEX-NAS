@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"io"
+	"crypto/tls"
 
 	"github.com/joho/godotenv"
 	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -43,14 +45,27 @@ func authenticate() string {
 		"format":  {"sid"},
 	}
 
-	resp, err := http.Get(authURL + "?" + params.Encode())
+	// Configurer un client HTTPS qui ignore les erreurs de certificat
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Get(authURL + "?" + params.Encode())
 	if err != nil {
 		log.Fatalf("Erreur lors de l'authentification : %v", err)
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Erreur lors de la lecture de la réponse : %v", err)
+	}
+
+	log.Printf("Réponse brute : %s", string(body))
+
 	var result map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&result)
+	err = json.Unmarshal(body, &result)
 	if err != nil {
 		log.Fatalf("Erreur lors du décodage de la réponse JSON : %v", err)
 	}
