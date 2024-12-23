@@ -26,7 +26,7 @@ func Authenticate() string {
 	authURL := fmt.Sprintf("https://%s:%s/webapi/auth.cgi", nasIP, nasPort)
 	params := url.Values{
 		"api":     {"SYNO.API.Auth"},
-		"version": {"6"}, // Utilisation de la version correcte
+		"version": {"6"},
 		"method":  {"login"},
 		"account": {username},
 		"passwd":  {password},

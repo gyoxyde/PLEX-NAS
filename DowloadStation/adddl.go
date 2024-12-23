@@ -50,6 +50,7 @@ func AddDownload(sid, link string) {
 	}
 
 	log.Printf("Réponse brute de l'API : %s", string(body))
+	log.Printf("Paramètres de la requête : %s", params.Encode())
 
 	// Décoder la réponse JSON
 	var result map[string]interface{}
@@ -64,5 +65,12 @@ func AddDownload(sid, link string) {
 		log.Printf("Téléchargement ajouté avec succès : %v", result)
 	} else {
 		log.Printf("Erreur API : %v", result)
+	}
+
+	if success, ok := result["success"].(bool); !ok || !success {
+		if errorData, ok := result["error"].(map[string]interface{}); ok {
+			errorCode := errorData["code"]
+			log.Printf("Erreur API : Code %v, Détails : %v", errorCode, errorData)
+		}
 	}
 }
