@@ -105,6 +105,15 @@ func getDownloadStatus(sid string) string {
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Erreur lors de la lecture de la réponse : %v", err)
+		return "Erreur lors de la récupération des données."
+	}
+
+	log.Printf("Réponse brute : %s", string(body))
+
+
 	// Lire et analyser la réponse
 	var result map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
