@@ -24,7 +24,7 @@ jobs:
       - name: Build binary
         run: |
           mkdir -p build
-          GOOS=linux GOARCH=amd64 go build -o build/botTelegram main.go
+          GOOS=linux GOARCH=arm64 go build -o build/botTelegram main.go
 
       # Étape 4 : Créer un fichier .env avec les variables nécessaires
       - name: Create .env file
