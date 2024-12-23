@@ -101,42 +101,50 @@ func getDownloadStatus(sid string) string {
 	resp, err := client.Get(statusURL + "?" + params.Encode())
 	if err != nil {
 		log.Printf("Erreur lors de la récupération du statut des téléchargements : %v", err)
-		return "Erreur lors de la récupération du statut."
+		return "Erreur lors de la récupération des données."
 	}
 	defer resp.Body.Close()
 
+	// Lire et analyser la réponse brute
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Erreur lors de la lecture de la réponse : %v", err)
-		return "Erreur lors de la récupération des données."
+		return "Erreur lors de l'analyse des données."
 	}
 
 	log.Printf("Réponse brute : %s", string(body))
 
-
-	// Lire et analyser la réponse
 	var result map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&result)
+	err = json.Unmarshal(body, &result)
 	if err != nil {
-		log.Printf("Erreur lors du décodage de la réponse JSON : %v", err)
+		log.Printf("Erreur lors du décodage JSON : %v", err)
 		return "Erreur lors de l'analyse des données."
 	}
 
 	if success, ok := result["success"].(bool); ok && success {
-		// Extraire les tâches
-		data := result["data"].(map[string]interface{})
-		tasks := data["tasks"].([]interface{})
+		data, ok := result["data"].(map[string]interface{})
+		if !ok || data == nil {
+			return "Aucune donnée disponible."
+		}
 
-		// Construire une réponse
+		tasks, ok := data["tasks"].([]interface{})
+		if !ok || len(tasks) == 0 {
+			return "Aucune tâche trouvée."
+		}
+
+		// Construire une réponse avec les statuts des tâches
 		statusMessage := "Statut des téléchargements :\n"
 		for _, task := range tasks {
-			taskData := task.(map[string]interface{})
+			taskData, ok := task.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
 			title := taskData["title"].(string)
 			status := taskData["status"].(string)
-			progress := taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_downloaded"].(float64)
-			size := taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_total"].(float64)
+			size := taskData["size"].(float64)
 
-			statusMessage += fmt.Sprintf("- %s : %s (%.2f/%.2f MB)\n", title, status, progress/(1024*1024), size/(1024*1024))
+			statusMessage += fmt.Sprintf("- %s : %s (%.2f MB)\n", title, status, size/(1024*1024))
 		}
 		return statusMessage
 	}
@@ -144,7 +152,6 @@ func getDownloadStatus(sid string) string {
 	log.Printf("Erreur lors de la récupération des tâches : %v", result)
 	return "Impossible de récupérer le statut des téléchargements."
 }
-
 
 func addDownload(sid, link string) {
 	nasIP := os.Getenv("NAS_LOCAL_IP")
