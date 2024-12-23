@@ -9,6 +9,7 @@ import (
 	"os"
 	"io"
 	"crypto/tls"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -101,7 +102,7 @@ func getDownloadStatus(sid string) string {
 	resp, err := client.Get(statusURL + "?" + params.Encode())
 	if err != nil {
 		log.Printf("Erreur lors de la récupération du statut des téléchargements : %v", err)
-		return "Erreur lors de la récupération des données."
+		return "❌ Erreur lors de la récupération des données."
 	}
 	defer resp.Body.Close()
 
@@ -109,7 +110,7 @@ func getDownloadStatus(sid string) string {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Erreur lors de la lecture de la réponse : %v", err)
-		return "Erreur lors de l'analyse des données."
+		return "❌ Erreur lors de l'analyse des données."
 	}
 
 	log.Printf("Réponse brute : %s", string(body))
@@ -118,22 +119,25 @@ func getDownloadStatus(sid string) string {
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		log.Printf("Erreur lors du décodage JSON : %v", err)
-		return "Erreur lors de l'analyse des données."
+		return "❌ Erreur lors de l'analyse des données."
 	}
 
 	if success, ok := result["success"].(bool); ok && success {
 		data, ok := result["data"].(map[string]interface{})
 		if !ok || data == nil {
-			return "Aucune donnée disponible."
+			return "📂 Aucune donnée disponible."
 		}
 
 		tasks, ok := data["tasks"].([]interface{})
 		if !ok || len(tasks) == 0 {
-			return "Aucune tâche trouvée."
+			return "📂 Aucune tâche trouvée."
 		}
 
-		// Construire une réponse avec les statuts des tâches
-		statusMessage := "Statut des téléchargements :\n"
+		// Listes pour les tâches
+		ongoingDownloads := []string{}
+		completedDownloads := []string{}
+
+		// Construire les listes
 		for _, task := range tasks {
 			taskData, ok := task.(map[string]interface{})
 			if !ok {
@@ -144,19 +148,54 @@ func getDownloadStatus(sid string) string {
 			status := taskData["status"].(string)
 			size := taskData["size"].(float64)
 
-			statusMessage += fmt.Sprintf("- %s : %s (%.2f MB)\n", title, status, size/(1024*1024))
+			if status == "downloading" {
+				// Barre de progression
+				downloaded := taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_downloaded"].(float64)
+				progress := int((downloaded / size) * 10) // 10 blocs pour la barre
+				bar := fmt.Sprintf("[%s%s]", string([]rune("⬜️")[:progress])+string([]rune("⬛️")[:10-progress]), "⬛️")
+				ongoingDownloads = append(ongoingDownloads, fmt.Sprintf("⬇️ %s : %s (%.2f MB / %.2f MB) %s", title, status, downloaded/(1024*1024), size/(1024*1024), bar))
+			} else if status == "finished" {
+				completedDownloads = append(completedDownloads, fmt.Sprintf("✅ %s (%.2f MB)", title, size/(1024*1024)))
+			}
 		}
+
+		// Construire le message final
+		statusMessage := "📊 **Statut des téléchargements :**\n\n"
+
+		if len(ongoingDownloads) > 0 {
+			statusMessage += "🚀 **Téléchargements en cours :**\n"
+			statusMessage += strings.Join(ongoingDownloads, "\n")
+			statusMessage += "\n\n"
+		} else {
+			statusMessage += "🚀 Aucun téléchargement en cours.\n\n"
+		}
+
+		if len(completedDownloads) > 0 {
+			statusMessage += "🎉 **Derniers téléchargements terminés :**\n"
+			// Afficher uniquement les 5 derniers
+			count := 5
+			if len(completedDownloads) < 5 {
+				count = len(completedDownloads)
+			}
+			statusMessage += strings.Join(completedDownloads[:count], "\n")
+		} else {
+			statusMessage += "🎉 Aucun téléchargement terminé."
+		}
+
 		return statusMessage
 	}
 
 	log.Printf("Erreur lors de la récupération des tâches : %v", result)
-	return "Impossible de récupérer le statut des téléchargements."
+	return "❌ Impossible de récupérer le statut des téléchargements."
 }
+
 
 func addDownload(sid, link string) {
 	nasIP := os.Getenv("NAS_LOCAL_IP")
 	nasPort := os.Getenv("NAS_LOCAL_PORT")
+	destination := "/volume1/MOVIES/Downloads"
 
+	// URL pour ajouter une tâche
 	taskURL := fmt.Sprintf("https://%s:%s/webapi/DownloadStation/task.cgi", nasIP, nasPort)
 	params := url.Values{
 		"api":     {"SYNO.DownloadStation.Task"},
@@ -164,17 +203,37 @@ func addDownload(sid, link string) {
 		"method":  {"create"},
 		"_sid":    {sid},
 		"uri":     {link},
+		"destination": {destination},
 	}
 
-	resp, err := http.Get(taskURL + "?" + params.Encode())
+	// Configurer un client HTTPS qui ignore les erreurs de certificat
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
+	// Envoyer la requête
+	resp, err := client.Get(taskURL + "?" + params.Encode())
 	if err != nil {
 		log.Printf("Erreur lors de l'ajout du téléchargement : %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
+	// Lire et analyser la réponse
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Erreur lors de la lecture de la réponse : %v", err)
+		return
+	}
+
 	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		log.Printf("Erreur lors du décodage de la réponse JSON : %v", err)
+		return
+	}
+
 	log.Printf("Réponse ajout de téléchargement : %v", result)
 }
 
