@@ -54,7 +54,7 @@ func main() {
 
 		// Gérer les commandes autorisées
 		switch update.Message.Command() {
-		case "download":
+		case "dl":
 			link := update.Message.CommandArguments()
 			if link == "" {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Envoie un lien valide.")

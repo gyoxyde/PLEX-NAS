@@ -20,11 +20,11 @@ func AddDownload(sid, link string) {
 	// URL pour ajouter une tâche
 	taskURL := fmt.Sprintf("https://%s:%s/webapi/DownloadStation/task.cgi", nasIP, nasPort)
 	params := url.Values{
-		"api":     {"SYNO.DownloadStation.Task"},
-		"version": {"1"},
-		"method":  {"create"},
-		"_sid":    {sid},
-		"uri":     {link},
+		"api":         {"SYNO.DownloadStation.Task"},
+		"version":     {"1"},
+		"method":      {"create"},
+		"_sid":        {sid},
+		"uri":         {link},
 		"destination": {destination},
 	}
 
@@ -42,15 +42,16 @@ func AddDownload(sid, link string) {
 	}
 	defer resp.Body.Close()
 
-	print(resp.Body)
-
-	// Lire et analyser la réponse
+	// Lire la réponse brute
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Erreur lors de la lecture de la réponse : %v", err)
 		return
 	}
 
+	log.Printf("Réponse brute de l'API : %s", string(body))
+
+	// Décoder la réponse JSON
 	var result map[string]interface{}
 	err = json.Unmarshal(body, &result)
 	if err != nil {
@@ -58,5 +59,10 @@ func AddDownload(sid, link string) {
 		return
 	}
 
-	log.Printf("Réponse ajout de téléchargement : %v", result)
+	// Vérifier le statut de la réponse
+	if success, ok := result["success"].(bool); ok && success {
+		log.Printf("Téléchargement ajouté avec succès : %v", result)
+	} else {
+		log.Printf("Erreur API : %v", result)
+	}
 }
