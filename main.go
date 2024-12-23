@@ -79,6 +79,64 @@ func authenticate() string {
 	return ""
 }
 
+func getDownloadStatus(sid string) string {
+	nasIP := os.Getenv("NAS_LOCAL_IP")
+	nasPort := os.Getenv("NAS_LOCAL_PORT")
+
+	// URL pour récupérer le statut des tâches
+	statusURL := fmt.Sprintf("https://%s:%s/webapi/DownloadStation/task.cgi", nasIP, nasPort)
+	params := url.Values{
+		"api":     {"SYNO.DownloadStation.Task"},
+		"version": {"1"},
+		"method":  {"list"},
+		"_sid":    {sid},
+	}
+
+	// Configurer un client HTTPS qui ignore les erreurs de certificat
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Get(statusURL + "?" + params.Encode())
+	if err != nil {
+		log.Printf("Erreur lors de la récupération du statut des téléchargements : %v", err)
+		return "Erreur lors de la récupération du statut."
+	}
+	defer resp.Body.Close()
+
+	// Lire et analyser la réponse
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		log.Printf("Erreur lors du décodage de la réponse JSON : %v", err)
+		return "Erreur lors de l'analyse des données."
+	}
+
+	if success, ok := result["success"].(bool); ok && success {
+		// Extraire les tâches
+		data := result["data"].(map[string]interface{})
+		tasks := data["tasks"].([]interface{})
+
+		// Construire une réponse
+		statusMessage := "Statut des téléchargements :\n"
+		for _, task := range tasks {
+			taskData := task.(map[string]interface{})
+			title := taskData["title"].(string)
+			status := taskData["status"].(string)
+			progress := taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_downloaded"].(float64)
+			size := taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_total"].(float64)
+
+			statusMessage += fmt.Sprintf("- %s : %s (%.2f/%.2f MB)\n", title, status, progress/(1024*1024), size/(1024*1024))
+		}
+		return statusMessage
+	}
+
+	log.Printf("Erreur lors de la récupération des tâches : %v", result)
+	return "Impossible de récupérer le statut des téléchargements."
+}
+
+
 func addDownload(sid, link string) {
 	nasIP := os.Getenv("NAS_LOCAL_IP")
 	nasPort := os.Getenv("NAS_LOCAL_PORT")
@@ -150,7 +208,8 @@ func main() {
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Téléchargement ajouté pour : "+link)
 			bot.Send(msg)
 		case "status":
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Statut des téléchargements : Fonctionnalité à venir.")
+			status := getDownloadStatus(sid)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, status)
 			bot.Send(msg)
 		default:
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Commande inconnue.")
