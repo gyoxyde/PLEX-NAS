@@ -36,6 +36,32 @@ var ErrorCode = map[int]string{
 	403: "Accès refusé - Authentification requise",
 }
 
+func Add1FichierAuth(originalURL string) (string, error) {
+	oneFichierUser := url.QueryEscape("zarconecesar@gmail.com")
+	oneFichierPass := url.QueryEscape("C2.&B_$9H@i52Hc")
+	
+	if oneFichierUser == "" || oneFichierPass == "" {
+		return "", fmt.Errorf("identifiants 1fichier manquants")
+	}
+
+	// Construct the authenticated URL for 1fichier
+	urlParts := strings.Split(originalURL, "?")
+	if len(urlParts) != 2 {
+		return "", fmt.Errorf("format d'URL 1fichier invalide")
+	}
+
+	baseURL := urlParts[0]
+	fileID := strings.Split(urlParts[1], "&")[0]
+	
+	authenticatedURL := fmt.Sprintf("%s?%s&auth_user=%s&auth_pass=%s", 
+		baseURL, 
+		fileID, 
+		oneFichierUser, 
+		oneFichierPass)
+	
+	return authenticatedURL, nil
+}
+
 func AddDownload(sid, link string) string {
 	nasIP := os.Getenv("NAS_LOCAL_IP")
 	nasPort := os.Getenv("NAS_LOCAL_PORT")
@@ -52,21 +78,15 @@ func AddDownload(sid, link string) string {
 		return fmt.Sprintf("❌ Lien invalide : %s", link)
 	}
 
+	downloadLink := link
 	// Special handling for 1fichier.com
 	if strings.Contains(parsedURL.Host, "1fichier.com") {
-		oneFichierUser := "zarconecesar@gmail.com"
-		oneFichierPass := "C2.&B_$9H@i52Hc"
-		
-		if oneFichierUser == "" || oneFichierPass == "" {
-			return "❌ Configuration manquante pour 1fichier.com - Veuillez configurer les identifiants"
+		authenticatedURL, err := Add1FichierAuth(link)
+		if err != nil {
+			return fmt.Sprintf("❌ %s", err.Error())
 		}
-		
-		// Add authentication parameters to the URL
-		q := parsedURL.Query()
-		q.Set("auth_user", oneFichierUser)
-		q.Set("auth_pass", oneFichierPass)
-		parsedURL.RawQuery = q.Encode()
-		link = parsedURL.String()
+		downloadLink = authenticatedURL
+		log.Printf("URL authentifié 1fichier : %s", downloadLink)
 	}
 
 	// Build API URL
@@ -76,7 +96,7 @@ func AddDownload(sid, link string) string {
 		"version":     {"1"},
 		"method":      {"create"},
 		"_sid":        {sid},
-		"uri":         {link},
+		"uri":         {downloadLink},
 		"destination": {destination},
 	}
 
@@ -87,7 +107,10 @@ func AddDownload(sid, link string) string {
 	client := &http.Client{Transport: tr}
 
 	// Send request
-	resp, err := client.Get(taskURL + "?" + params.Encode())
+	fullURL := taskURL + "?" + params.Encode()
+	log.Printf("URL complète de la requête : %s", fullURL)
+	
+	resp, err := client.Get(fullURL)
 	if err != nil {
 		log.Printf("Erreur de requête HTTP : %v", err)
 		return "❌ Erreur de connexion au NAS"
@@ -103,7 +126,6 @@ func AddDownload(sid, link string) string {
 
 	// Log raw response for debugging
 	log.Printf("Réponse API : %s", string(body))
-	log.Printf("Paramètres : %s", params.Encode())
 
 	// Parse response
 	var apiResp APIResponse
