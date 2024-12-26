@@ -54,8 +54,8 @@ func AddDownload(sid, link string) string {
 
 	// Special handling for 1fichier.com
 	if strings.Contains(parsedURL.Host, "1fichier.com") {
-		oneFichierUser := os.Getenv("ONEFICHIER_USER")
-		oneFichierPass := os.Getenv("ONEFICHIER_PASS")
+		oneFichierUser := "zarconecesar@gmail.com"
+		oneFichierPass := "C2.&B_$9H@i52Hc"
 		
 		if oneFichierUser == "" || oneFichierPass == "" {
 			return "❌ Configuration manquante pour 1fichier.com - Veuillez configurer les identifiants"
