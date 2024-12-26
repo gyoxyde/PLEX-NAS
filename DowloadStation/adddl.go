@@ -15,7 +15,7 @@ import (
 func AddDownload(sid, link string) string {
 	nasIP := os.Getenv("NAS_LOCAL_IP")
 	nasPort := os.Getenv("NAS_LOCAL_PORT")
-	destination := "/volume1/MOVIES/Downloads"
+	destination := "/volume1/MOVIES/Downloads/"
 	sid = Authenticate()
 
 	// URL pour ajouter une tâche
