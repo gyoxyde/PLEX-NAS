@@ -13,6 +13,30 @@ import (
 	"bytes"
 )
 
+// APIResponse represents the standard Synology API response structure
+type APIResponse struct {
+	Success bool `json:"success"`
+	Error   struct {
+		Code int `json:"code"`
+	} `json:"error,omitempty"`
+	Data interface{} `json:"data,omitempty"`
+}
+
+// ErrorCode maps Synology error codes to human-readable messages
+var ErrorCode = map[int]string{
+	100: "Erreur inconnue",
+	101: "Paramètre invalide",
+	102: "L'API demandée n'existe pas",
+	103: "La méthode demandée n'existe pas",
+	104: "La version demandée ne supporte pas cette fonctionnalité",
+	105: "La session n'a pas les permissions nécessaires",
+	106: "Session expirée",
+	107: "Session interrompue par une connexion multiple",
+	108: "Fichier inexistant",
+	109: "Destination invalide",
+	403: "Accès refusé - Authentification requise",
+}
+
 // OneFichierAPIResponse represents the 1fichier API response
 type OneFichierAPIResponse struct {
 	Status  string `json:"status"`
