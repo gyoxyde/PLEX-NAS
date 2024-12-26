@@ -61,8 +61,8 @@ func main() {
 				bot.Send(msg)
 				continue
 			}
-			DownloadStation.AddDownload(sid, link)
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Téléchargement ajouté pour : "+link)
+			status := DownloadStation.AddDownload(sid, link)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, status + " " + link)
 			bot.Send(msg)
 		case "status":
 			status := DownloadStation.GetDownloadStatus(sid)

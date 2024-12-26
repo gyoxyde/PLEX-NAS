@@ -12,7 +12,7 @@ import (
 )
 
 
-func AddDownload(sid, link string) {
+func AddDownload(sid, link string) string {
 	nasIP := os.Getenv("NAS_LOCAL_IP")
 	nasPort := os.Getenv("NAS_LOCAL_PORT")
 	destination := "/volume1/MOVIES/Downloads"
@@ -38,7 +38,7 @@ func AddDownload(sid, link string) {
 	resp, err := client.Get(taskURL + "?" + params.Encode())
 	if err != nil {
 		log.Printf("Erreur lors de l'ajout du téléchargement : %v", err)
-		return
+		return "❌ Erreur lors de l'ajout du téléchargement."
 	}
 	defer resp.Body.Close()
 
@@ -46,7 +46,7 @@ func AddDownload(sid, link string) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Erreur lors de la lecture de la réponse : %v", err)
-		return
+		return "❌ Erreur lors de l'analyse des données."
 	}
 
 	log.Printf("Réponse brute de l'API : %s", string(body))
@@ -57,7 +57,7 @@ func AddDownload(sid, link string) {
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		log.Printf("Erreur lors du décodage de la réponse JSON : %v", err)
-		return
+		return "❌ Erreur lors de l'analyse des données."
 	}
 
 	// Vérifier le statut de la réponse
@@ -71,6 +71,8 @@ func AddDownload(sid, link string) {
 		if errorData, ok := result["error"].(map[string]interface{}); ok {
 			errorCode := errorData["code"]
 			log.Printf("Erreur API : Code %v, Détails : %v", errorCode, errorData)
+			return fmt.Sprintf("❌ Erreur lors de l'ajout du téléchargement : %v", errorData)
 		}
 	}
+	return "✅ Téléchargement ajouté avec succès"
 }
