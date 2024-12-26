@@ -10,56 +10,70 @@ import (
 	"io"
 	"crypto/tls"
 	"strings"
+	"bytes"
 )
 
-// APIResponse represents the standard Synology API response structure
-type APIResponse struct {
-	Success bool `json:"success"`
-	Error   struct {
-		Code int `json:"code"`
-	} `json:"error,omitempty"`
-	Data interface{} `json:"data,omitempty"`
+// OneFichierAPIResponse represents the 1fichier API response
+type OneFichierAPIResponse struct {
+	Status  string `json:"status"`
+	URL     string `json:"url"`
+	Message string `json:"message"`
 }
 
-// ErrorCode maps Synology error codes to human-readable messages
-var ErrorCode = map[int]string{
-	100: "Erreur inconnue",
-	101: "Paramètre invalide",
-	102: "L'API demandée n'existe pas",
-	103: "La méthode demandée n'existe pas",
-	104: "La version demandée ne supporte pas cette fonctionnalité",
-	105: "La session n'a pas les permissions nécessaires",
-	106: "Session expirée",
-	107: "Session interrompue par une connexion multiple",
-	108: "Fichier inexistant",
-	109: "Destination invalide",
-	403: "Accès refusé - Authentification requise",
-}
-
-func Add1FichierAuth(originalURL string) (string, error) {
-	oneFichierUser := url.QueryEscape("zarconecesar@gmail.com")
-	oneFichierPass := url.QueryEscape("C2.&B_$9H@i52Hc")
-	
-	if oneFichierUser == "" || oneFichierPass == "" {
-		return "", fmt.Errorf("identifiants 1fichier manquants")
+// Get direct download link from 1fichier using API key
+func Get1FichierDirectLink(fileURL string) (string, error) {
+	apiKey := "G_baFm-uemr8mYMPwzx=ZfKgPK5DQ4Ae"
+	if apiKey == "" {
+		return "", fmt.Errorf("clé API 1fichier manquante")
 	}
 
-	// Construct the authenticated URL for 1fichier
-	urlParts := strings.Split(originalURL, "?")
-	if len(urlParts) != 2 {
-		return "", fmt.Errorf("format d'URL 1fichier invalide")
+	// Prepare API request
+	apiURL := "https://api.1fichier.com/v1/download/get_token.cgi"
+	requestData := map[string]string{
+		"link": fileURL,
 	}
 
-	baseURL := urlParts[0]
-	fileID := strings.Split(urlParts[1], "&")[0]
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return "", fmt.Errorf("erreur de préparation de la requête API: %v", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("erreur de création de la requête: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 	
-	authenticatedURL := fmt.Sprintf("%s?%s&auth_user=%s&auth_pass=%s", 
-		baseURL, 
-		fileID, 
-		oneFichierUser, 
-		oneFichierPass)
-	
-	return authenticatedURL, nil
+	// Send request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("erreur d'appel API 1fichier: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("erreur de lecture de la réponse: %v", err)
+	}
+
+	log.Printf("Réponse API 1fichier: %s", string(body))
+
+	// Parse response
+	var apiResp OneFichierAPIResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return "", fmt.Errorf("erreur de parsing JSON: %v", err)
+	}
+
+	if apiResp.Status != "OK" {
+		return "", fmt.Errorf("erreur 1fichier: %s", apiResp.Message)
+	}
+
+	return apiResp.URL, nil
 }
 
 func AddDownload(sid, link string) string {
@@ -72,21 +86,16 @@ func AddDownload(sid, link string) string {
 		return "❌ Le lien de téléchargement ne peut pas être vide"
 	}
 
-	// Validate URL format
-	parsedURL, err := url.ParseRequestURI(link)
-	if err != nil {
-		return fmt.Sprintf("❌ Lien invalide : %s", link)
-	}
-
 	downloadLink := link
 	// Special handling for 1fichier.com
-	if strings.Contains(parsedURL.Host, "1fichier.com") {
-		authenticatedURL, err := Add1FichierAuth(link)
+	if strings.Contains(link, "1fichier.com") {
+		directLink, err := Get1FichierDirectLink(link)
 		if err != nil {
-			return fmt.Sprintf("❌ %s", err.Error())
+			log.Printf("Erreur 1fichier: %v", err)
+			return fmt.Sprintf("❌ Erreur 1fichier: %v", err)
 		}
-		downloadLink = authenticatedURL
-		log.Printf("URL authentifié 1fichier : %s", downloadLink)
+		downloadLink = directLink
+		log.Printf("Lien direct 1fichier obtenu: %s", downloadLink)
 	}
 
 	// Build API URL
@@ -107,10 +116,7 @@ func AddDownload(sid, link string) string {
 	client := &http.Client{Transport: tr}
 
 	// Send request
-	fullURL := taskURL + "?" + params.Encode()
-	log.Printf("URL complète de la requête : %s", fullURL)
-	
-	resp, err := client.Get(fullURL)
+	resp, err := client.Get(taskURL + "?" + params.Encode())
 	if err != nil {
 		log.Printf("Erreur de requête HTTP : %v", err)
 		return "❌ Erreur de connexion au NAS"
@@ -125,22 +131,21 @@ func AddDownload(sid, link string) string {
 	}
 
 	// Log raw response for debugging
-	log.Printf("Réponse API : %s", string(body))
+	log.Printf("Réponse API Download Station: %s", string(body))
 
 	// Parse response
-	var apiResp APIResponse
-	if err := json.Unmarshal(body, &apiResp); err != nil {
+	var dsResp APIResponse
+	if err := json.Unmarshal(body, &dsResp); err != nil {
 		log.Printf("Erreur de parsing JSON : %v", err)
 		return "❌ Erreur lors de l'analyse de la réponse"
 	}
 
-	// Handle API response
-	if !apiResp.Success {
-		errorMessage := ErrorCode[apiResp.Error.Code]
+	if !dsResp.Success {
+		errorMessage := ErrorCode[dsResp.Error.Code]
 		if errorMessage == "" {
-			errorMessage = fmt.Sprintf("Erreur inconnue (Code: %d)", apiResp.Error.Code)
+			errorMessage = fmt.Sprintf("Erreur inconnue (Code: %d)", dsResp.Error.Code)
 		}
-		log.Printf("Erreur API : %s (Code: %d)", errorMessage, apiResp.Error.Code)
+		log.Printf("Erreur API : %s (Code: %d)", errorMessage, dsResp.Error.Code)
 		return fmt.Sprintf("❌ %s", errorMessage)
 	}
 
