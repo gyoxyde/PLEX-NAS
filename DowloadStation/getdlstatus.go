@@ -23,6 +23,7 @@ func GetDownloadStatus(sid string) string {
 		"version": {"1"},
 		"method":  {"list"},
 		"_sid":    {sid},
+		"additional": {"detail,transfer"},
 	}
 
 	// Configurer un client HTTPS qui ignore les erreurs de certificat
