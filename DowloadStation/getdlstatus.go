@@ -52,8 +52,6 @@ func GetDownloadStatus(sid string) string {
 		return "❌ Erreur lors de l'analyse des données."
 	}
 
-	fmt.Println(result)
-
 	if success, ok := result["success"].(bool); ok && success {
 		data, ok := result["data"].(map[string]interface{})
 		if !ok || data == nil {
@@ -67,6 +65,8 @@ func GetDownloadStatus(sid string) string {
 
 		// Listes pour les tâches
 		ongoingDownloads := []string{}
+		pausedDownloads := []string{}
+		waitingDownloads := []string{}
 		completedDownloads := []string{}
 
 		// Construire les listes
@@ -84,8 +84,12 @@ func GetDownloadStatus(sid string) string {
 				// Barre de progression
 				downloaded := taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_downloaded"].(float64)
 				progress := int((downloaded / size) * 10)
-				bar := fmt.Sprintf("[%s%s]", string([]rune("⬜️")[:progress])+string([]rune("⬛️")[:10-progress]), "⬛️")
+				bar := fmt.Sprintf("[%s%s]", strings.Repeat("⬜️", progress)+strings.Repeat("⬛️", 10-progress))
 				ongoingDownloads = append(ongoingDownloads, fmt.Sprintf("⬇️ %s : %s (%.2f MB / %.2f MB) %s", title, status, downloaded/(1024*1024), size/(1024*1024), bar))
+			} else if status == "paused" {
+				pausedDownloads = append(pausedDownloads, fmt.Sprintf("⏸️ %s (%.2f MB)", title, size/(1024*1024)))
+			} else if status == "waiting" {
+				waitingDownloads = append(waitingDownloads, fmt.Sprintf("⌛ %s (%.2f MB)", title, size/(1024*1024)))
 			} else if status == "finished" {
 				completedDownloads = append(completedDownloads, fmt.Sprintf("✅ %s (%.2f MB)", title, size/(1024*1024)))
 			}
@@ -102,19 +106,25 @@ func GetDownloadStatus(sid string) string {
 			statusMessage += "🚀 Aucun téléchargement en cours.\n\n"
 		}
 
+		if len(pausedDownloads) > 0 {
+			statusMessage += "⏸️ **Téléchargements en pause :**\n"
+			statusMessage += strings.Join(pausedDownloads, "\n")
+			statusMessage += "\n\n"
+		}
+
+		if len(waitingDownloads) > 0 {
+			statusMessage += "⌛ **Téléchargements en attente :**\n"
+			statusMessage += strings.Join(waitingDownloads, "\n")
+			statusMessage += "\n\n"
+		}
+
 		if len(completedDownloads) > 0 {
 			statusMessage += "🎉 **Derniers téléchargements terminés :**\n"
-			// Afficher uniquement les 5 derniers
 			count := 5
 			if len(completedDownloads) < 5 {
 				count = len(completedDownloads)
 			}
-			for _, download := range completedDownloads[:count] {
-				if len(download) > 30 {
-					download = download[:50] + "..."
-				}
-				statusMessage += download + "\n"
-			}
+			statusMessage += strings.Join(completedDownloads[:count], "\n")
 		} else {
 			statusMessage += "🎉 Aucun téléchargement terminé."
 		}
