@@ -81,6 +81,7 @@ func GetDownloadStatus(sid string) string {
 			size := taskData["size"].(float64)
 
 			if status == "downloading" {
+				fmt.Println(taskData);
 				// Barre de progression
 				downloaded := taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_downloaded"].(float64)
 				progress := int((downloaded / size) * 10)
