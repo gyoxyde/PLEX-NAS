@@ -52,6 +52,8 @@ func GetDownloadStatus(sid string) string {
 		return "❌ Erreur lors de l'analyse des données."
 	}
 
+	fmt.Println(result)
+
 	if success, ok := result["success"].(bool); ok && success {
 		data, ok := result["data"].(map[string]interface{})
 		if !ok || data == nil {
