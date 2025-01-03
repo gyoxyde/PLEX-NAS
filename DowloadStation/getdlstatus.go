@@ -10,6 +10,7 @@ import (
 	"io"
 	"crypto/tls"
 	"strings"
+	"sort"
 )
 
 func GetDownloadStatus(sid string) string {
@@ -19,11 +20,11 @@ func GetDownloadStatus(sid string) string {
 	// URL pour récupérer le statut des tâches
 	statusURL := fmt.Sprintf("https://%s:%s/webapi/DownloadStation/task.cgi", nasIP, nasPort)
 	params := url.Values{
-		"api":     {"SYNO.DownloadStation.Task"},
-		"version": {"1"},
-		"method":  {"list"},
-		"_sid":    {sid},
-		"additional": {"detail,transfer"},
+		"api":       {"SYNO.DownloadStation.Task"},
+		"version":   {"1"},
+		"method":    {"list"},
+		"_sid":      {sid},
+		"additional": {"detail,transfer"}, // Ajout des détails supplémentaires
 	}
 
 	// Configurer un client HTTPS qui ignore les erreurs de certificat
@@ -64,72 +65,66 @@ func GetDownloadStatus(sid string) string {
 			return "📂 Aucune tâche trouvée."
 		}
 
-		// Listes pour les tâches
-		ongoingDownloads := []string{}
-		pausedDownloads := []string{}
-		waitingDownloads := []string{}
-		completedDownloads := []string{}
+		// Catégories de tâches
+		statusMap := map[string][]map[string]interface{}{
+			"waiting":           {},
+			"downloading":       {},
+			"paused":            {},
+			"finishing":         {},
+			"finished":          {},
+			"hash_checking":     {},
+			"seeding":           {},
+			"filehosting_waiting": {},
+			"extracting":        {},
+			"error":             {},
+		}
 
-		// Construire les listes
+		// Parcourir les tâches et les classer par statut
 		for _, task := range tasks {
 			taskData, ok := task.(map[string]interface{})
 			if !ok {
 				continue
 			}
 
-			title := taskData["title"].(string)
 			status := taskData["status"].(string)
-			size := taskData["size"].(float64)
-
-			if status == "downloading" {
-				fmt.Println("Downloading test")
-				fmt.Println(taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_downloaded"].(float64))
-				// Barre de progression
-				downloaded := taskData["additional"].(map[string]interface{})["transfer"].(map[string]interface{})["size_downloaded"].(float64)
-				progress := int((downloaded / size) * 10)
-				bar := fmt.Sprintf("[%s%s]", strings.Repeat("⬜️", progress)+strings.Repeat("⬛️", 10-progress))
-				ongoingDownloads = append(ongoingDownloads, fmt.Sprintf("⬇️ %s : %s (%.2f MB / %.2f MB) %s", title, status, downloaded/(1024*1024), size/(1024*1024), bar))
-			} else if status == "paused" {
-				pausedDownloads = append(pausedDownloads, fmt.Sprintf("⏸️ %s (%.2f MB)", title, size/(1024*1024)))
-			} else if status == "waiting" {
-				waitingDownloads = append(waitingDownloads, fmt.Sprintf("⌛ %s (%.2f MB)", title, size/(1024*1024)))
-			} else if status == "finished" {
-				completedDownloads = append(completedDownloads, fmt.Sprintf("✅ %s (%.2f MB)", title, size/(1024*1024)))
-			}
+			statusMap[status] = append(statusMap[status], taskData)
 		}
 
 		// Construire le message final
 		statusMessage := "📊 **Statut des téléchargements :**\n\n"
+		for status, taskList := range statusMap {
+			if len(taskList) > 0 {
+				// Trier les tâches par date (descendant)
+				sort.Slice(taskList, func(i, j int) bool {
+					timeI := taskList[i]["additional"].(map[string]interface{})["detail"].(map[string]interface{})["create_time"].(float64)
+					timeJ := taskList[j]["additional"].(map[string]interface{})["detail"].(map[string]interface{})["create_time"].(float64)
+					return timeI > timeJ
+				})
 
-		if len(ongoingDownloads) > 0 {
-			statusMessage += "🚀 **Téléchargements en cours :**\n"
-			statusMessage += strings.Join(ongoingDownloads, "\n")
-			statusMessage += "\n\n"
-		} else {
-			statusMessage += "🚀 Aucun téléchargement en cours.\n\n"
-		}
+				// Limiter à 2 tâches
+				if len(taskList) > 2 {
+					taskList = taskList[:2]
+				}
 
-		if len(pausedDownloads) > 0 {
-			statusMessage += "⏸️ **Téléchargements en pause :**\n"
-			statusMessage += strings.Join(pausedDownloads, "\n")
-			statusMessage += "\n\n"
-		}
+				// Construire la section pour ce statut
+				statusMessage += fmt.Sprintf("**%s**\n", getStatusTitle(status))
+				for _, task := range taskList {
+					title := task["title"].(string)
+					size := task["size"].(float64)
 
-		if len(waitingDownloads) > 0 {
-			statusMessage += "⌛ **Téléchargements en attente :**\n"
-			statusMessage += strings.Join(waitingDownloads, "\n")
-			statusMessage += "\n\n"
-		}
-
-		if len(completedDownloads) > 0 {
-			statusMessage += "🎉 **Derniers téléchargements terminés :**\n"
-			count := 5
-			if len(completedDownloads) < 5 {
-				count = len(completedDownloads)
+					if status == "downloading" || status == "finishing" {
+						additional := task["additional"].(map[string]interface{})
+						transfer := additional["transfer"].(map[string]interface{})
+						downloaded := transfer["size_downloaded"].(float64)
+						progress := int((downloaded / size) * 10)
+						bar := fmt.Sprintf("[%s%s]", strings.Repeat("⬜️", progress)+strings.Repeat("⬛️", 10-progress))
+						statusMessage += fmt.Sprintf("⬇️ %s : %s (%.2f MB / %.2f MB) %s\n", title, status, downloaded/(1024*1024), size/(1024*1024), bar)
+					} else {
+						statusMessage += fmt.Sprintf("%s %s (%.2f MB)\n", getStatusIcon(status), title, size/(1024*1024))
+					}
+				}
+				statusMessage += "\n"
 			}
-			statusMessage += strings.Join(completedDownloads[:count], "\n")
-		} else {
-			statusMessage += "🎉 Aucun téléchargement terminé."
 		}
 
 		return statusMessage
@@ -137,4 +132,61 @@ func GetDownloadStatus(sid string) string {
 
 	log.Printf("Erreur lors de la récupération des tâches : %v", result)
 	return "❌ Impossible de récupérer le statut des téléchargements."
+}
+
+
+// Helper : Renvoie un titre pour chaque statut
+func getStatusTitle(status string) string {
+	switch status {
+	case "waiting":
+		return "⌛ En attente"
+	case "downloading":
+		return "🚀 En cours de téléchargement"
+	case "paused":
+		return "⏸️ Téléchargements en pause"
+	case "finishing":
+		return "✅ Finalisation"
+	case "finished":
+		return "🎉 Téléchargements terminés"
+	case "hash_checking":
+		return "🔍 Vérification d'intégrité"
+	case "seeding":
+		return "🌱 Partage en cours"
+	case "filehosting_waiting":
+		return "⌛ En attente de filehosting"
+	case "extracting":
+		return "📦 Extraction en cours"
+	case "error":
+		return "❌ Erreurs"
+	default:
+		return "📂 Autres"
+	}
+}
+
+// Helper : Renvoie un icône pour chaque statut
+func getStatusIcon(status string) string {
+	switch status {
+	case "waiting":
+		return "⌛"
+	case "downloading":
+		return "⬇️"
+	case "paused":
+		return "⏸️"
+	case "finishing":
+		return "✅"
+	case "finished":
+		return "🎉"
+	case "hash_checking":
+		return "🔍"
+	case "seeding":
+		return "🌱"
+	case "filehosting_waiting":
+		return "⌛"
+	case "extracting":
+		return "📦"
+	case "error":
+		return "❌"
+	default:
+		return "📂"
+	}
 }
