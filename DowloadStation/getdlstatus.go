@@ -91,7 +91,7 @@ func GetDownloadStatus(sid string) string {
 		}
 
 		// Construire le message final
-		statusMessage := "📊 **Statut des téléchargements :**\n\n"
+		statusMessage := "📊 *Statut des téléchargements :*\n\n"
 		for status, taskList := range statusMap {
 			if len(taskList) > 0 {
 				// Trier les tâches par date (descendant)
@@ -107,7 +107,7 @@ func GetDownloadStatus(sid string) string {
 				}
 
 				// Construire la section pour ce statut
-				statusMessage += fmt.Sprintf("**%s**\n", getStatusTitle(status))
+				statusMessage += fmt.Sprintf("*%s*\n", escapeMarkdown(getStatusTitle(status)))
 				for _, task := range taskList {
 					title := task["title"].(string)
 					size := task["size"].(float64)
@@ -118,9 +118,9 @@ func GetDownloadStatus(sid string) string {
 						downloaded := transfer["size_downloaded"].(float64)
 						progress := int((downloaded / size) * 10)
 						bar := fmt.Sprintf("[%s%s]", strings.Repeat("⬜️", progress)+strings.Repeat("⬛️", 10-progress))
-						statusMessage += fmt.Sprintf("⬇️ %s : %s (%.2f MB / %.2f MB) %s\n", title, status, downloaded/(1024*1024), size/(1024*1024), bar)
+						statusMessage += fmt.Sprintf("⬇️ %s : %s (%.2f MB / %.2f MB) %s\n", escapeMarkdown(title), status, downloaded/(1024*1024), size/(1024*1024), bar)
 					} else {
-						statusMessage += fmt.Sprintf("%s %s (%.2f MB)\n", getStatusIcon(status), title, size/(1024*1024))
+						statusMessage += fmt.Sprintf("%s %s (%.2f MB)\n", getStatusIcon(status), escapeMarkdown(title), size/(1024*1024))
 					}
 				}
 				statusMessage += "\n"
@@ -134,6 +134,30 @@ func GetDownloadStatus(sid string) string {
 	return "❌ Impossible de récupérer le statut des téléchargements."
 }
 
+// Helper : Échappe les caractères Markdown V2
+func escapeMarkdown(text string) string {
+	replacer := strings.NewReplacer(
+		"_", "\\_",
+		"*", "\\*",
+		"[", "\\[",
+		"]", "\\]",
+		"(", "\\(",
+		")", "\\)",
+		"~", "\\~",
+		"`", "\\`",
+		">", "\\>",
+		"#", "\\#",
+		"+", "\\+",
+		"-", "\\-",
+		"=", "\\=",
+		"|", "\\|",
+		"{", "\\{",
+		"}", "\\}",
+		".", "\\.",
+		"!", "\\!",
+	)
+	return replacer.Replace(text)
+}
 
 // Helper : Renvoie un titre pour chaque statut
 func getStatusTitle(status string) string {
